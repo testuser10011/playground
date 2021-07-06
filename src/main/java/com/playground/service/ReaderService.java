@@ -44,7 +44,7 @@ public class ReaderService {
         }
     }
 
-    private void initData(JdbcTemplate jdbcTemplate, Iterator<HistoricalQuote> iterator) {
+    private synchronized void  initData(JdbcTemplate jdbcTemplate, Iterator<HistoricalQuote> iterator) {
         ArrayList<Date> dataArray=new ArrayList<>();
         String reserveCompanyName = null;
         while (iterator.hasNext()) {
@@ -72,8 +72,8 @@ public class ReaderService {
             Date date = generateRandomDate(dataArray.get(0),dataArray.get(dataArray.size()-1));
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             String dateStr = dateFormat.format(date);
-            int enumChooser = getRandomNumber(0,1);
-            jdbcTemplate.execute("INSERT OR IGNORE INTO transactions  (company , [transaction],date) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + reserveCompanyName + "'),'" + enumChooser+ "','"+ dateStr + "')");
+            int enumChooser = getRandomNumber(0,2);
+            jdbcTemplate.execute("INSERT INTO transactions  (company , [transaction],date) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + reserveCompanyName + "'),'" + ((enumChooser>0)?"BUY":"SELL")+ "','"+ dateStr + "')");
         }
     }
 
@@ -91,7 +91,7 @@ public class ReaderService {
         return (int) ((Math.random() * (max - min)) + min);
     }
 
-    private  Date generateRandomDate(Date start, Date other) {
+    public  Date generateRandomDate(Date start, Date other) {
         long startMillis = start.getTime();
         long endMillis = other.getTime();
         long randomMillisSinceEpoch = ThreadLocalRandom
