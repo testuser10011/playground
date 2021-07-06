@@ -6,6 +6,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+/**
+ * The type Service app.
+ * currently just used in Spring boot beans
+ */
 @SpringBootApplication
 public class ServiceApp {
     @Autowired

@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * The type Stock object.
+ */
 @Getter
 @With
 @AllArgsConstructor
@@ -30,19 +33,36 @@ public class StockObject {
 
     private JdbcTemplate jdbcTemplate;
 
+    /**
+     * Instantiates a new Stock object.
+     *
+     * @param stock the stock
+     */
     public StockObject(Stock stock) {
         this.actualStock = stock;
         dateAccessed = LocalDateTime.now();
     }
 
+    /**
+     * Gets company values.
+     *
+     * @param jdbcTemplate the jdbc template
+     * @return the company values
+     */
     public List<DatabaseObject> getCompanyValues(JdbcTemplate jdbcTemplate) {
         String sql = "SELECT * FROM companiesCatalogue";
         this.jdbcTemplate = jdbcTemplate;
         return jdbcTemplate.query(sql, new DatabaseObjectMapper());
     }
 
-    private enum Transact {SELL, BUY}
+    private enum Transact {
+        SELL,
+        BUY
+    }
 
+    /**
+     * The  Transactions table object type
+     */
     @Getter
     @Setter
     private class TransactionsObject {
@@ -53,6 +73,9 @@ public class StockObject {
         private Date date;
     }
 
+    /**
+     * The  Company table object type
+     */
     @Getter
     @Setter
     private class CompanyValue {
@@ -71,6 +94,9 @@ public class StockObject {
         private List<PorfolioObject> porfolio;
     }
 
+    /**
+     * The  Porfolio table object type
+     */
     @Getter
     @Setter
     private class PorfolioObject {
@@ -80,6 +106,10 @@ public class StockObject {
 
     }
 
+    /**
+     * The type Portfolio value mapper.
+     * Used to populate PorfolioObject
+     */
     public class PortfolioValueMapper implements RowMapper<PorfolioObject> {
         @Override
         public PorfolioObject mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -91,6 +121,10 @@ public class StockObject {
         }
     }
 
+    /**
+     * The type Company value mapper.
+     * Used to populate Company
+     */
     public class CompanyValueMapper implements RowMapper<CompanyValue> {
         @Override
         public CompanyValue mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -109,6 +143,10 @@ public class StockObject {
         }
     }
 
+    /**
+     * The type Database object mapper.
+     * Used to populate overall database structure
+     */
     public class DatabaseObjectMapper implements RowMapper<DatabaseObject> {
         @Override
         public DatabaseObject mapRow(ResultSet rs, int rowNum) throws SQLException {

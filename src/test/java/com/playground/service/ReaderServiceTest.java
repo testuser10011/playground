@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- *
+ * The type Reader service test.
  */
 @SpringBootTest(classes = ServiceApp.class)
 class ReaderServiceTest implements CommandLineRunner {
