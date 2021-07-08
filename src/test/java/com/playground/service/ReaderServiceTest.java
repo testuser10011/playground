@@ -10,6 +10,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.List;
+
 /**
  * The type Reader service test.
  */
@@ -45,38 +47,34 @@ class ReaderServiceTest implements CommandLineRunner {
                 ");");
 
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS portfolio (\n" +
-                "    id        INTEGER PRIMARY KEY\n" +
-                "                      NOT NULL,\n" +
-                "    numStocks BIGINT  DEFAULT (0),\n" +
-                "    companyID INTEGER NOT NULL\n" +
-                "                      REFERENCES companiesCatalogue (id) \n" +
-                "                      UNIQUE ON CONFLICT IGNORE\n" +
+                "    id               INTEGER PRIMARY KEY\n" +
+                "                             NOT NULL,\n" +
+                "    numStocksCurrent BIGINT  DEFAULT (0),\n" +
+                "    companyID        INTEGER NOT NULL\n" +
+                "                             REFERENCES companiesCatalogue (id) \n" +
+                "                             UNIQUE ON CONFLICT IGNORE,\n" +
+                "    numStocksStart   BIGINT  DEFAULT (0) \n" +
                 ");");
 
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS transactions (\n" +
-                "    id            INTEGER  PRIMARY KEY AUTOINCREMENT,\n" +
-                "    company       INTEGER  REFERENCES company (id) \n" +
-                "                           NOT NULL,\n" +
-                "    price         DECIMAL,\n" +
-                "    [transaction] STRING   NOT NULL,\n" +
-                "    date          DATETIME NOT NULL\n" +
+                "    id        INTEGER  PRIMARY KEY AUTOINCREMENT,\n" +
+                "    companyID INTEGER  REFERENCES company (id) \n" +
+                "                       NOT NULL,\n" +
+                "    quantity  BIGINT   DEFAULT (0),\n" +
+                "    transact  STRING   NOT NULL,\n" +
+                "    date      DATETIME NOT NULL\n" +
                 ");");
 
     }
 
+    /*TODO configre dependency injection*/
     @Test
     void invoke() throws Exception {
-        final StockObject object = srv.stockGetter("TSLA");
-        System.out.println(object.getActualStock());
-
-        /* populate database with historical data */
-        final StockObject object1 = srv.stockGetterOnDate("TSLA", "11-06-2021");
-        final StockObject object2 = srv.stockGetterOnDate("AMZN", "11-06-2021");
+        final StockObject object1 = srv.stockGetter("TSLA");
+        //   final StockObject object2 = srv.stockGetterOnDate("AMZN", "2021-06-11");
 
         srv.decodeStock(object1, jdbcTemplate, true);
-        srv.decodeStock(object2, jdbcTemplate, true);
-        srv.serveRequest(object1, jdbcTemplate);
-        srv.serveRequest(object2, jdbcTemplate);
+        List<StockObject.DatabaseObject> o1 = srv.serveRequest(object1, jdbcTemplate, "2021-05-20");
     }
 
 
@@ -89,12 +87,12 @@ class ReaderServiceTest implements CommandLineRunner {
     @AfterEach
     void tearDown() {
         System.out.println("Finishing test");
-        /*
+
         jdbcTemplate.execute("drop table companiesCatalogue;");
         jdbcTemplate.execute("drop table company;");
         jdbcTemplate.execute("drop table portfolio;");
         jdbcTemplate.execute("drop table transactions;");
         //jdbcTemplate = null;
-        */
+
     }
 }

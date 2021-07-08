@@ -10,6 +10,8 @@ import yahoofinance.histquotes.Interval;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.*;
@@ -34,7 +36,7 @@ public class ReaderService {
      */
     public StockObject stockGetter(final String companySymbol) {
         try {
-            return new StockObject(YahooFinance.get(companySymbol));
+            return new StockObject(YahooFinance.get(companySymbol), companySymbol);
         } catch (IOException e) {
             System.out.println(e.getMessage());
             return null;
@@ -49,14 +51,13 @@ public class ReaderService {
      * @return the stock object
      */
     public StockObject stockGetterOnDate(final String companySymbol, String dateString) {
-
         try {
             // TO DO - refactor this exception part
-            SimpleDateFormat dataFormat = new SimpleDateFormat("dd-MM-yyyy");
+            SimpleDateFormat dataFormat = new SimpleDateFormat("yyyy-MM-dd");
             Date date = dataFormat.parse(dateString);
             Calendar cal = Calendar.getInstance();
             cal.setTime(date);
-            return new StockObject(YahooFinance.get(companySymbol, cal, Interval.DAILY));
+            return new StockObject(YahooFinance.get(companySymbol, cal, Interval.DAILY), companySymbol);
         } catch (Exception e) {
             System.out.println(e.getMessage());
             return null;
@@ -89,7 +90,7 @@ public class ReaderService {
             jdbcTemplate.execute("INSERT OR IGNORE INTO companiesCatalogue  (companyName) VALUES ('" + company + "')");
             jdbcTemplate.execute("INSERT OR IGNORE INTO company  (companyID ,value,date) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + company + "'),'" + value + "','" + dateStr + "')");
             //to to try to add only once - right now done via database constraint
-            jdbcTemplate.execute("INSERT OR IGNORE INTO portfolio  (companyID ,numStocks) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + company + "'),'" + getRandomNumber(0, 50000) + "')");
+            jdbcTemplate.execute("INSERT OR IGNORE INTO portfolio  (companyID ,numStocksStart) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + company + "'),'" + getRandomNumber(0, 50000) + "')");
         }
         int numberOfTransactions = getRandomNumber(0, 10);
         Collections.sort(dataArray);
@@ -99,7 +100,8 @@ public class ReaderService {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             String dateStr = dateFormat.format(date);
             int enumChooser = getRandomNumber(0, 2);
-            jdbcTemplate.execute("INSERT INTO transactions  (company , [transaction],date) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + reserveCompanyName + "'),'" + ((enumChooser > 0) ? "BUY" : "SELL") + "','" + dateStr + "')");
+            long quantity = getRandomNumber(1, 10);
+            jdbcTemplate.execute("INSERT INTO transactions  (companyID , transact,date,quantity) VALUES ((SELECT id FROM companiesCatalogue WHERE companyName ='" + reserveCompanyName + "'),'" + ((enumChooser > 0) ? "BUY" : "SELL") + "','" + dateStr + "','" + quantity + "');");
         }
     }
 
@@ -125,8 +127,8 @@ public class ReaderService {
      * @param jdbcTemplate the jdbc template
      * @return the list
      */
-    public List<StockObject.DatabaseObject> serveRequest(StockObject object, JdbcTemplate jdbcTemplate) {
-        return object.getCompanyValues(jdbcTemplate);
+    public List<StockObject.DatabaseObject> serveRequest(StockObject object, JdbcTemplate jdbcTemplate, String date) {
+        return object.getCompanyValues(jdbcTemplate, returnDateFromString(date));
     }
 
     /**
@@ -156,4 +158,13 @@ public class ReaderService {
         return new Date(randomMillisSinceEpoch);
     }
 
+    private Date returnDateFromString(String date) {
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        try {
+            return new java.sql.Date(df.parse(date).getTime());
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
