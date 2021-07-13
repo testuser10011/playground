@@ -1,14 +1,18 @@
 package com.playground.dataobject;
 
-import lombok.AllArgsConstructor;
+
 import lombok.Getter;
 import lombok.Setter;
-import lombok.With;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import yahoofinance.Stock;
 import yahoofinance.histquotes.HistoricalQuote;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,28 +28,24 @@ import java.util.ListIterator;
  * The type Stock object.
  */
 @Getter
-@With
-@AllArgsConstructor
-public class StockObject {
-    private final Stock actualStock;
-    private final String companyName;
-    private final LocalDateTime dateAccessed;
-    private HistoricalQuote historicalQuote;
+@Setter
 
+public class StockObject {
+
+    private Stock stock;
+    private String companySymbol;
+    private String dateString;
+    private LocalDateTime dateAccessed;
+    private HistoricalQuote historicalQuote;
 
     private JdbcTemplate jdbcTemplate;
 
-    /**
-     * Instantiates a new Stock object.
-     *
-     * @param stock the stock
-     */
+    private String outputFileName;
 
-    public StockObject(Stock stock, final String companySymbol) {
-        this.actualStock = stock;
-        this.companyName = companySymbol;
-        dateAccessed = LocalDateTime.now();
+    StockObject() throws ParseException {
+        this.dateAccessed = LocalDateTime.now();
     }
+
 
     /**
      * Gets all company values.
@@ -54,7 +54,7 @@ public class StockObject {
      * @return the company values
      */
     public List<DatabaseObject> getCompanyValues(JdbcTemplate jdbcTemplate, Date date) {
-        String sql = "SELECT * FROM companiesCatalogue where companyName='" + this.getCompanyName() + "'";
+        String sql = "SELECT * FROM companiesCatalogue where companyName='" + this.getCompanySymbol() + "'";
         this.jdbcTemplate = jdbcTemplate;
         List<DatabaseObject> tempObject = jdbcTemplate.query(sql, new DatabaseObjectMapper());
         BigDecimal initialStock = tempObject.get(0).getPorfolio().get(0).getNumStocksStart();
@@ -98,11 +98,53 @@ public class StockObject {
         }
 
         tempObject.get(0).setValueAtDate(numStocksAtDate.multiply(stockValueAtDate));
-        System.out.println("Value at requested date:"+tempObject.get(0).getValueAtDate().toString());
+        System.out.println("Value at requested date:" + tempObject.get(0).getValueAtDate().toString());
         System.out.println(tempObject.get(0).toString());
+        //add values to JSON file
+        org.json.JSONObject jsonObject = new JSONObject();
+        try {
+            jsonObject.put(this.getCompanySymbol(), tempObject.get(0).getValueAtDate());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        this.toJson(jsonObject);
         return tempObject;
     }
 
+    /**
+     * converts current value to json
+     *
+     * @param jsonObject the json object
+     */
+    public void toJson(JSONObject jsonObject) {
+        byte[] buff = new byte[]{};
+        String jsonStr = jsonObject.toString();
+
+        FileOutputStream out = null;
+        File file = new File(outputFileName);
+        // Check if the directory exists, create the directory if it does not exist
+        if (!file.getParentFile().exists()) {
+            file.getParentFile().mkdirs();
+        }
+        try {
+            buff = jsonStr.getBytes();
+            //out=new FileOutputStream(outputFileName);
+            out = new FileOutputStream(file);
+            System.out.println("Output file directory:" + outputFileName);
+            out.write(buff, 0, buff.length);
+            System.out.println("Output json data to file successfully");
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
     private enum Transact {
         SELL,
@@ -155,7 +197,6 @@ public class StockObject {
             return data;
         }
     }
-
 
     /**
      * The  Company table object type

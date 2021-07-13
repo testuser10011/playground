@@ -1,9 +1,11 @@
 package com.playground.service;
 
 import com.playground.dataobject.StockObject;
-import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import yahoofinance.YahooFinance;
 import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
@@ -23,26 +25,78 @@ import java.util.concurrent.ThreadLocalRandom;
  * Creates Stock objects
  * Updates databases
  */
-@AllArgsConstructor
-@Service
+@Getter
+@Setter
+@Component
 public class ReaderService {
+    @Autowired
+    private StockObject stockObject;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
+    private String calculateAtDate;
 
-    /**
-     * Stock getter stock object.
-     *
-     * @param companySymbol the company symbol
-     * @return the stock object
-     */
-    public StockObject stockGetter(final String companySymbol) {
-        try {
-            return new StockObject(YahooFinance.get(companySymbol), companySymbol);
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
-            return null;
-        }
+    private String dateFormat;
+
+    public ReaderService(StockObject s) {
+
+        this.setStockObject(s);
+
     }
 
+    //dubbuging only
+    void setUp() {
+        System.out.println("Preparing test");
+
+        //Create the database tables:
+
+        jdbcTemplate.execute(" CREATE TABLE IF NOT EXISTS companiesCatalogue (\n" +
+                "                id          INTEGER PRIMARY KEY,\n" +
+                "                companyName STRING  UNIQUE\n" +
+                "                NOT NULL\n" +
+                "        );");
+
+
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS company (\n" +
+                "    id        INTEGER PRIMARY KEY ASC AUTOINCREMENT\n" +
+                "                      NOT NULL,\n" +
+                "    companyID INTEGER NOT NULL\n" +
+                "                      REFERENCES companiesCatalogue (id),\n" +
+                "    date      DATE,\n" +
+                "    value     DOUBLE  NOT NULL\n" +
+                ");");
+
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS portfolio (\n" +
+                "    id               INTEGER PRIMARY KEY\n" +
+                "                             NOT NULL,\n" +
+                "    numStocksCurrent BIGINT  DEFAULT (0),\n" +
+                "    companyID        INTEGER NOT NULL\n" +
+                "                             REFERENCES companiesCatalogue (id) \n" +
+                "                             UNIQUE ON CONFLICT IGNORE,\n" +
+                "    numStocksStart   BIGINT  DEFAULT (0) \n" +
+                ");");
+
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS transactions (\n" +
+                "    id        INTEGER  PRIMARY KEY AUTOINCREMENT,\n" +
+                "    companyID INTEGER  REFERENCES company (id) \n" +
+                "                       NOT NULL,\n" +
+                "    quantity  BIGINT   DEFAULT (0),\n" +
+                "    transact  STRING   NOT NULL,\n" +
+                "    date      DATETIME NOT NULL\n" +
+                ");");
+
+    }
+
+    public void tearDown() {
+        System.out.println("Finishing test");
+
+        jdbcTemplate.execute("delete from companiesCatalogue;");
+        jdbcTemplate.execute("delete from  company;");
+        jdbcTemplate.execute("delete from  portfolio;");
+        jdbcTemplate.execute("delete from transactions;");
+        //jdbcTemplate = null;
+
+    }
     /**
      * Stock getter on date stock object.
      *
@@ -50,28 +104,14 @@ public class ReaderService {
      * @param dateString    the date string
      * @return the stock object
      */
-    public StockObject stockGetterOnDate(final String companySymbol, String dateString) {
-        try {
-            // TO DO - refactor this exception part
-            SimpleDateFormat dataFormat = new SimpleDateFormat("yyyy-MM-dd");
-            Date date = dataFormat.parse(dateString);
-            Calendar cal = Calendar.getInstance();
-            cal.setTime(date);
-            return new StockObject(YahooFinance.get(companySymbol, cal, Interval.DAILY), companySymbol);
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            return null;
-        }
-    }
 
     /**
      * data intialisation for datatbases
      * used for testing only
      *
-     * @param jdbcTemplate database beans reference
-     * @param iterator     Iterator over Yahoo API historical quotes
+     * @param iterator Iterator over Yahoo API historical quotes
      */
-    private synchronized void initData(JdbcTemplate jdbcTemplate, Iterator<HistoricalQuote> iterator) {
+    private synchronized void initData(Iterator<HistoricalQuote> iterator) {
         ArrayList<Date> dataArray = new ArrayList<>();
         String reserveCompanyName = null;
         while (iterator.hasNext()) {
@@ -81,7 +121,7 @@ public class ReaderService {
             BigDecimal value = tempObject.getClose();
             Calendar date = tempObject.getDate();
             dataArray.add(date.getTime());
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat);
             String dateStr = dateFormat.format(date.getTime());
             if (dateStr == null) {
                 dateStr = LocalDate.now().toString();
@@ -97,7 +137,7 @@ public class ReaderService {
 
         for (int i = 1; i <= numberOfTransactions; i++) {
             Date date = generateRandomDate(dataArray.get(0), dataArray.get(dataArray.size() - 1));
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat);
             String dateStr = dateFormat.format(date);
             int enumChooser = getRandomNumber(0, 2);
             long quantity = getRandomNumber(1, 10);
@@ -106,29 +146,32 @@ public class ReaderService {
     }
 
     /**
-     * Decode stock.
+     * Decode stockObject.
      *
-     * @param thisStock    the this stock
-     * @param jdbcTemplate the jdbc template
-     * @param initData     the init data
+     * @param initData the init data
      * @throws IOException the io exception
      */
-    public void decodeStock(final StockObject thisStock, JdbcTemplate jdbcTemplate, boolean initData) throws IOException {
-        Iterator<HistoricalQuote> iterator = thisStock.getActualStock().getHistory().iterator();
-        if (initData) {
-            initData(jdbcTemplate, iterator);
+    public void decodeStock(boolean initData) throws IOException {
+        try {
+            // TO DO - refactor this exception part
+            SimpleDateFormat dataFormat = new SimpleDateFormat(this.dateFormat);
+            Date date = dataFormat.parse(this.stockObject.getDateString());
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(date);
+            this.stockObject.setStock(YahooFinance.get(this.stockObject.getCompanySymbol(), cal, Interval.MONTHLY));
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
         }
+        if (initData) initData(this.stockObject.getStock().getHistory().iterator());
     }
 
     /**
      * Serve request list.
      *
-     * @param object       the object
-     * @param jdbcTemplate the jdbc template
      * @return the list
      */
-    public List<StockObject.DatabaseObject> serveRequest(StockObject object, JdbcTemplate jdbcTemplate, String date) {
-        return object.getCompanyValues(jdbcTemplate, returnDateFromString(date));
+    public List<StockObject.DatabaseObject> serveRequest() {
+        return stockObject.getCompanyValues(this.jdbcTemplate, returnDateFromString(this.calculateAtDate));
     }
 
     /**
@@ -159,7 +202,7 @@ public class ReaderService {
     }
 
     private Date returnDateFromString(String date) {
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        DateFormat df = new SimpleDateFormat(this.dateFormat);
         try {
             return new java.sql.Date(df.parse(date).getTime());
         } catch (ParseException e) {

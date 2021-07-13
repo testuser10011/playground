@@ -1,7 +1,6 @@
 package com.playground.service;
 
 import com.playground.ServiceApp;
-import com.playground.dataobject.StockObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,8 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-
-import java.util.List;
 
 /**
  * The type Reader service test.
@@ -70,11 +67,9 @@ class ReaderServiceTest implements CommandLineRunner {
     /*TODO configre dependency injection*/
     @Test
     void invoke() throws Exception {
-        final StockObject object1 = srv.stockGetter("TSLA");
-        //   final StockObject object2 = srv.stockGetterOnDate("AMZN", "2021-06-11");
-
-        srv.decodeStock(object1, jdbcTemplate, true);
-        List<StockObject.DatabaseObject> o1 = srv.serveRequest(object1, jdbcTemplate, "2021-05-20");
+        Integer i = 0;
+        //  srv.decodeStock(object1, jdbcTemplate, true);
+        //List<StockObject.DatabaseObject> o1 = srv.serveRequest(object1, jdbcTemplate, "2021-05-20");
     }
 
 
