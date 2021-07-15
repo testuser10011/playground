@@ -10,9 +10,6 @@ import org.springframework.jdbc.core.RowMapper;
 import yahoofinance.Stock;
 import yahoofinance.histquotes.HistoricalQuote;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -26,23 +23,27 @@ import java.util.ListIterator;
 
 /**
  * The type Stock object.
+ *Class used by YAHOO finance library to extract info from web site
+ *https://finance.yahoo.com/quote/TSM?p=TSM&.tsrc=fin-srch
+ * TODO add data validation when reaging from database
  */
 @Getter
 @Setter
-
 public class StockObject {
 
     private Stock stock;
+    //company symbol for which values are extracted , calculated
     private String companySymbol;
+    //date until when values will be extracted
     private String dateString;
+    //date on which object was updated
     private LocalDateTime dateAccessed;
+    //Array of historycal data
     private HistoricalQuote historicalQuote;
-
+    //database wrapper
     private JdbcTemplate jdbcTemplate;
 
-    private String outputFileName;
-
-    StockObject() throws ParseException {
+    StockObject() {
         this.dateAccessed = LocalDateTime.now();
     }
 
@@ -51,9 +52,9 @@ public class StockObject {
      * Gets all company values.
      *
      * @param jdbcTemplate the jdbc template
-     * @return the company values
+     * @return the company values in JSON format
      */
-    public List<DatabaseObject> getCompanyValues(JdbcTemplate jdbcTemplate, Date date) {
+    public JSONObject getCompanyValues(JdbcTemplate jdbcTemplate, Date date) {
         String sql = "SELECT * FROM companiesCatalogue where companyName='" + this.getCompanySymbol() + "'";
         this.jdbcTemplate = jdbcTemplate;
         List<DatabaseObject> tempObject = jdbcTemplate.query(sql, new DatabaseObjectMapper());
@@ -107,45 +108,10 @@ public class StockObject {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        this.toJson(jsonObject);
-        return tempObject;
+        return jsonObject;
     }
 
-    /**
-     * converts current value to json
-     *
-     * @param jsonObject the json object
-     */
-    public void toJson(JSONObject jsonObject) {
-        byte[] buff = new byte[]{};
-        String jsonStr = jsonObject.toString();
-
-        FileOutputStream out = null;
-        File file = new File(outputFileName);
-        // Check if the directory exists, create the directory if it does not exist
-        if (!file.getParentFile().exists()) {
-            file.getParentFile().mkdirs();
-        }
-        try {
-            buff = jsonStr.getBytes();
-            //out=new FileOutputStream(outputFileName);
-            out = new FileOutputStream(file);
-            System.out.println("Output file directory:" + outputFileName);
-            out.write(buff, 0, buff.length);
-            System.out.println("Output json data to file successfully");
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (out != null) {
-                try {
-                    out.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
+    //type of transactions
     private enum Transact {
         SELL,
         BUY
@@ -153,6 +119,8 @@ public class StockObject {
 
     /**
      * The  Transactions table object type
+     * mapping to database table transactions
+     * currently generated randomly in ReaderService.initData
      */
     @Getter
     @Setter

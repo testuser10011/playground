@@ -13,6 +13,7 @@ import java.io.IOException;
 /**
  * The type Service app.
  * currently just used in Spring boot beans
+ * creates a service which gets as parameters a list of STock objects beans as defined in appCong.xml
  */
 @SpringBootApplication
 public class ServiceApp {

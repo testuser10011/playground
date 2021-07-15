@@ -3,6 +3,7 @@ package com.playground.service;
 import com.playground.dataobject.StockObject;
 import lombok.Getter;
 import lombok.Setter;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -10,6 +11,9 @@ import yahoofinance.YahooFinance;
 import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
 
+import javax.annotation.Resource;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.DateFormat;
@@ -29,8 +33,9 @@ import java.util.concurrent.ThreadLocalRandom;
 @Setter
 @Component
 public class ReaderService {
-    @Autowired
-    private StockObject stockObject;
+    @Resource
+    //list of stock objects read from property file
+    private List<StockObject> stockObjectList;
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -38,12 +43,13 @@ public class ReaderService {
 
     private String dateFormat;
 
-    public ReaderService(StockObject s) {
+    // data frequency extraction : e.q. DAILY / MONTHLY )
+    private Interval frequencyFrame;
+    //file to be used for portfolio print out - see configuration file
+    private String outputFileName;
 
-        this.setStockObject(s);
 
-    }
-
+    //TODO add input data validation
     //dubbuging only
     void setUp() {
         System.out.println("Preparing test");
@@ -87,27 +93,23 @@ public class ReaderService {
 
     }
 
+    /**
+     * Tear down.
+     * used to clean database
+     * later on this needs to be refactored
+     */
     public void tearDown() {
         System.out.println("Finishing test");
-
         jdbcTemplate.execute("delete from companiesCatalogue;");
         jdbcTemplate.execute("delete from  company;");
         jdbcTemplate.execute("delete from  portfolio;");
         jdbcTemplate.execute("delete from transactions;");
-        //jdbcTemplate = null;
-
     }
-    /**
-     * Stock getter on date stock object.
-     *
-     * @param companySymbol the company symbol
-     * @param dateString    the date string
-     * @return the stock object
-     */
 
     /**
-     * data intialisation for datatbases
-     * used for testing only
+     * data intialisation for datatbases just for the fun of the esercise for now
+     * <p>
+     * to be updated with configuration data reader
      *
      * @param iterator Iterator over Yahoo API historical quotes
      */
@@ -147,32 +149,82 @@ public class ReaderService {
 
     /**
      * Decode stockObject.
+     * calls service to populate stockObject with Yahoo informations
+     * populates database tables of transactions and portfolio with ramdom data if initData = true
      *
      * @param initData the init data
      * @throws IOException the io exception
      */
     public void decodeStock(boolean initData) throws IOException {
-        try {
-            // TO DO - refactor this exception part
-            SimpleDateFormat dataFormat = new SimpleDateFormat(this.dateFormat);
-            Date date = dataFormat.parse(this.stockObject.getDateString());
-            Calendar cal = Calendar.getInstance();
-            cal.setTime(date);
-            this.stockObject.setStock(YahooFinance.get(this.stockObject.getCompanySymbol(), cal, Interval.MONTHLY));
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
+
+        for (StockObject stockObject : stockObjectList) {
+            try {
+                // TO DO - refactor this exception part
+                SimpleDateFormat dataFormat;
+                dataFormat = new SimpleDateFormat(this.dateFormat);
+                Date date = dataFormat.parse(stockObject.getDateString());
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(date);
+                stockObject.setStock(YahooFinance.get(stockObject.getCompanySymbol(), cal, frequencyFrame));
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+            }
+            if (initData) initData(stockObject.getStock().getHistory().iterator());
         }
-        if (initData) initData(this.stockObject.getStock().getHistory().iterator());
     }
 
     /**
      * Serve request list.
-     *
-     * @return the list
+     * for each stock objectin the stockObjectList calculates portfolio value and writes portfolio to file based on xml configuration
      */
-    public List<StockObject.DatabaseObject> serveRequest() {
-        return stockObject.getCompanyValues(this.jdbcTemplate, returnDateFromString(this.calculateAtDate));
+    public void serveRequest() {
+        boolean needToAppend = false;
+        for (int i = 0; i < stockObjectList.size(); i++) {
+            if (i > 0) {
+                needToAppend = true;
+            }
+            toFile(stockObjectList.get(i).getCompanyValues(this.jdbcTemplate, returnDateFromString(this.calculateAtDate)), needToAppend);
+        }
     }
+
+
+    /**
+     * converts current value to json
+     *
+     * @param jsonObject the json object
+     * @param append     parameter to specifies wheter to append or create new file
+     */
+    public void toFile(JSONObject jsonObject, boolean append) {
+        byte[] buff;
+        String jsonStr = jsonObject.toString();
+
+        FileOutputStream out = null;
+        File file = new File(outputFileName);
+
+        // Check if the directory exists, create the directory if it does not exist
+        if (!file.getParentFile().exists()) {
+            boolean mkdirs = file.getParentFile().mkdirs();
+            System.out.println("File creation called and result was " + mkdirs);
+        }
+        try {
+            buff = jsonStr.getBytes();
+            out = new FileOutputStream(file, append);
+            System.out.println("Output file directory:" + outputFileName);
+            out.write(buff, 0, buff.length);
+            System.out.println("Output json data to file successfully : " + jsonStr);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
 
     /**
      * Generated random integer between 2 numbers
